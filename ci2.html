@@ -1,0 +1,275 @@
+<script src="ci2.js"></script>
+<script>
+var NUM_FEATURES = 30;
+var NUM_CLASSES = 2;
+var NUM_HIDDEN_LAYERS = 2;
+var NUM_HIDDEN_NODES = 30;
+var seed = 550610515;
+
+function sigmoid(x){
+	return 1 / (1 + Math.pow(Math.E, -x));
+}
+function dsigmoid(x) {
+    return x * (1 - x);
+}
+function random() {
+	return Math.random();
+    var x = Math.sin(seed++) * 10000;
+    return x - Math.floor(x);
+}
+// prototype function
+if (!Array.prototype.last){
+    Array.prototype.last = function(){
+        return this[this.length - 1];
+    };
+};
+if (!Array.prototype.first){
+    Array.prototype.first = function(){
+        return this[0];
+    };
+};
+if (!Array.prototype.shuffle){
+    Array.prototype.shuffle = function(){
+		var n = this.length, t, r ;
+		while (0 !== n) {
+			r = Math.floor(random() * n);
+			n -= 1;
+			t = this[n];
+			this[n] = this[r];
+			this[r] = t;
+		}
+        return this;
+    };
+};
+
+
+
+function GA(train_data,test_data){
+	this.train_data = train_data;
+	this.test_data = test_data;
+	this.nn = new MLP(NUM_FEATURES,NUM_CLASSES,NUM_HIDDEN_LAYERS,NUM_HIDDEN_NODES);
+	this.epoch = 200;
+	this.num_population = 3;
+	this.num_individual = this.nn.getWeight().length;
+	this.best_population = new Chromosome(this.num_individual);
+	this.best_population.calculate(this.nn,this.train_data);
+	this.populations = [];
+	this.sum_fitness = 0;
+	this.min_fitness = 0;
+	this.avg_fitness = 0;
+	this.max_fitness = 0;
+	this.prob_mutation = 0.4;
+	this.prob_crossover = 0.07;
+	// initialization
+	for(var i=0;i<this.num_population;i++)
+		this.populations.push(new Chromosome(this.num_individual));
+	
+	this.calculate = function(){ 
+		// evaluation
+		//find fitness value for each chromosome
+		for(var i=0;i<this.num_population;i++)
+			this.populations[i].calculate(this.nn,this.train_data);
+		// genetic operator (crossover)
+		//for(var i=0;i<this.num_population-1;i++){
+		//	if(random()<this.prob_crossover && random()<this.populations[i].fitness)
+		//		this.populations[i].crossover(this.populations[Math.floor(random()*this.num_population)],this.nn,this.train_data);
+		//}
+			
+			
+		//tournament selection
+		//var new_populations = [];
+		// sort by fitness
+		this.populations.sort(function(a,b) {return a.fitness - b.fitness;});
+		//new_populations.push(this.populations.last());
+		if(this.populations.last().fitness > this.best_population.fitness)
+			this.best_population.individuals = this.populations.last().individuals.slice();
+		this.best_population.calculate(this.nn,this.train_data);
+//		for(var i=1;i<this.num_population;i++){
+//			var first = this.populations[Math.floor(random()*this.num_population)];
+//			var second = this.populations[Math.floor(random()*this.num_population)];
+//			if(first.fitness > second.fitness)
+//				new_populations.push(first);
+//			else
+//				new_populations.push(second);
+//		}
+		//this.populations = new_populations.slice();
+		//mutation
+		this.populations.first().individuals = this.best_population.mu();
+		for(var i=1;i<this.num_population;i++){
+			//if(random()>this.populations[i].fitness)
+				this.populations[i].mutate(this.nn,this.train_data);
+		}
+		
+//		this.c_populations.push(this.populations.first().fitness/this.sum_population);
+//		for(var i=1;i<this.num_population;i++)
+//			this.c_populations.push((this.populations[i].fitness/this.sum_population)+this.c_populations.last());
+//		var rand,j;
+//		for(var i=0;i<this.num_population;i++){
+//			rand=random();
+//			j=0;
+//			while(rand>this.c_populations[j++]);
+//			this.n_populations.push(this.populations[j-1].fitness);
+//		}
+//		for(var i=0;i<this.num_population;i++)
+//			this.populations[i].fitness = this.n_populations[i];
+
+		// sort by fitness
+//		this.populations.sort(function(a,b) {return a.fitness - b.fitness;});
+//		this.sum_fitness=0;
+//		for(var i=this.num_population;i--;)
+//			this.sum_fitness+=this.populations[i].fitness;
+//		this.min_fitness = this.populations.first().fitness;
+//		this.max_fitness = this.populations.last().fitness;
+//		this.avg_fitness = this.sum_fitness/this.num_population;
+	};
+	
+	
+	
+}
+
+function Chromosome(num_individual){
+	this.individuals = [];
+	this.fitness = 0;
+		for(var i=0;i<num_individual;i++)
+			this.individuals.push(random()*2-1);
+	this.calculate = function(nn,train_data){
+		nn.setWeight(this.individuals.slice());
+		this.fitness = 1-nn.calculate(train_data);	
+	};
+	this.crossover = function(chromosome,nn,train_data){
+		var cut_point = Math.floor(random()*this.individuals.length);
+		var tmp = this.individuals.slice(cut_point);
+		this.individuals = this.individuals.slice(0,cut_point).concat(chromosome.individuals.slice(cut_point));
+		this.calculate(nn,train_data);
+		chromosome.individuals = chromosome.individuals.slice(0,cut_point).concat(tmp);
+		chromosome.calculate(nn,train_data);
+	};
+	this.mutate = function(nn,train_data){
+		for(var i=this.individuals.length;i--;)
+			//if(random()<0.4)
+				this.individuals[i] = random()*2-1;
+	};
+	this.mu = function(){
+		var x = this.individuals.slice();
+		for(var i=this.individuals.length;i--;)
+			//if(random()<0.4)
+				x[i] += random()*2-1;
+		return x;
+	}
+}
+var results = [];
+if(data){
+	NUM_FEATURES = data.first().features.length;
+	NUM_CLASSES = data.first().classes.length;
+	data.shuffle();
+	//console.log(data.length);
+	//cross validation
+	var slice_data = data.length/10;
+	for(var i=0;i<10;i++){
+		var train_data = data.slice();
+		var test_data = train_data.splice(slice_data*i,slice_data);
+		var ga = new GA(train_data,test_data);
+		ga.calculate();
+		results.push(ga);
+	}
+	
+}
+function cal(){
+	for(var i=0;i<10;i++)
+		results[i].calculate();
+}
+
+var _epoch = 0;
+function test(){
+	results.first().calculate();
+	//console.log("epoch:"+_epoch++);
+	console.log("best:"+results.first().best_population.fitness);
+}
+y = setInterval(function(){test();}, 1);
+function MLP(f,c,hl,hn){
+	this.features = f;
+	this.class = c;
+	this.num_hidden_layer = hl;
+	this.num_hidden_node = hn;
+	this.layers = [];
+	// init Multilater Perceptron
+		this.layers.push(new NodeLayer(this.features,0));
+		for(var i=0;i<this.num_hidden_layer;i++)
+			this.layers.push(new NodeLayer(this.num_hidden_node,this.layers.last().num_node));
+		this.layers.push(new NodeLayer(this.class,this.layers.last().num_node));
+	// end init
+	
+	this.setWeight = function(weight_vector){
+		//count weight in MLP
+		var num_weight = 0;
+		for(var i=0;i<this.layers.length;i++)
+			for(var j=0;j<this.layers[i].nodes.length;j++)
+				num_weight += this.layers[i].nodes[j].weights.length;
+		if(weight_vector.length == num_weight){
+			for(var i=this.layers.length-1;i>=0;i--)
+				for(var j=0;j<this.layers[i].nodes.length;j++)
+					for(var k=0;k<this.layers[i].nodes[j].weights.length;k++)
+						this.layers[i].nodes[j].weights[k]=weight_vector.shift();
+		}
+	};
+	this.getWeight = function(){
+		var weight_vector = [];
+		for(var i=this.layers.length-1;i>=0;i--)
+			for(var j=0;j<this.layers[i].nodes.length;j++)
+				for(var k=0;k<this.layers[i].nodes[j].weights.length;k++)
+					weight_vector.push(this.layers[i].nodes[j].weights[k]);
+		return weight_vector;
+	};
+	
+	this.calculate = function(datas){
+		var error = 0;
+		for(var i=0;i<datas.length;i++)
+			error += this.forward(datas[i].features,datas[i].classes);
+		return error/datas.length; //mean squared error for dataset
+	};
+	
+	this.forward = function(features,classes){
+		this.layers.first().addData(features);
+		for(var i=1;i<this.layers.length;i++)
+			this.layers[i].calculate(this.layers[i-1].nodes);
+		return this.layers.last().getError(classes); // sum squared error for output layer
+	};
+}
+
+function NodeLayer(num_node,num_input){
+	this.num_node = num_node;
+	this.nodes = [];
+	for(var j=0;j<this.num_node;j++)
+		this.nodes.push(new Node(num_input));
+	this.addData = function(data){
+		if(data.length == this.num_node)
+			for(var i=0;i<this.num_node;i++)
+				this.nodes[i].output = data[i];
+	};
+	this.calculate = function(nodes){
+		for(var i=0;i<this.num_node;i++){
+			this.nodes[i].sum = this.nodes[i].weights.last();
+			for(var j=0;j<nodes.length;j++){
+				this.nodes[i].sum += nodes[j].output*this.nodes[i].weights[j];
+			}
+			this.nodes[i].output = sigmoid(this.nodes[i].sum);
+		}
+	};
+	this.getError = function(classes){
+		var error = 0; // sum squared error for layer
+		if(classes.length == this.num_node)
+			for(var i=0;i<this.num_node;i++)
+				error += (classes[i] - this.nodes[i].output)*(classes[i] - this.nodes[i].output);
+		return error/2;
+	};
+}
+
+function Node(num_input){
+	this.weights = [];
+	this.sum = 0;
+	this.output = 0;
+	this.error = 0;
+	for(var k=0;k<=num_input;k++)
+		this.weights.push(0);
+}
+</script>
